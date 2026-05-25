@@ -1,0 +1,134 @@
+Metadata-Version: 2.4
+Name: agent-context-budget
+Version: 0.1.0
+Summary: Track estimated token usage across a conversation, warn before the context limit hits.
+License: MIT
+Keywords: llm,agents,tokens,context,budget
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# agent-context-budget
+
+Track estimated token usage across a conversation and warn before the context limit hits.
+
+Zero dependencies. Python 3.10+. MIT.
+
+## Install
+
+```bash
+pip install agent-context-budget
+```
+
+## Usage
+
+```python
+from agent_context_budget import make_context_budget, ContextBudgetError
+import logging
+
+budget = make_context_budget(
+    max_tokens=8000,
+    warn_at=[0.7, 0.9],
+    on_warn=lambda w: logging.warning(w.message),
+)
+
+for turn in agent_loop():
+    budget.add_messages(messages)   # raises ContextBudgetError at 8001 tokens
+    response = call_llm(messages)
+    messages.append({"role": "assistant", "content": response.text})
+```
+
+## Add tokens different ways
+
+```python
+budget.add(500)                          # raw token count
+budget.add_text("some string")           # estimates tokens for text
+budget.add_message({"role": "user", "content": "hello"})  # one message
+budget.add_messages(messages)            # whole message list
+```
+
+## Token estimation
+
+`chars/4 + 4 per message` — the rough heuristic documented by major providers for
+planning purposes. Slightly over-estimates so trimming never cuts too close. No
+tokenizer dependency.
+
+## Snapshot for logging
+
+```python
+snap = budget.snapshot()
+# {"used_tokens": 5600, "max_tokens": 8000, "remaining_tokens": 2400,
+#  "pct_used": 0.7, "is_exhausted": False}
+```
+
+## stop_on_limit=False
+
+```python
+budget = make_context_budget(8000, stop_on_limit=False)
+while True:
+    if not budget.add_messages(messages):
+        # trim and retry
+        messages = trim(messages)
+        budget.reset()
+```
+
+## API
+
+### `make_context_budget(max_tokens, *, warn_at=None, on_warn=None, stop_on_limit=True)`
+
+Factory with default warn_at=[0.7, 0.9].
+
+### `ContextBudget`
+
+```python
+@dataclass
+class ContextBudget:
+    max_tokens: int
+    warn_at: list[float | int]
+    on_warn: Callable[[BudgetWarning], None] | None
+    stop_on_limit: bool
+
+    @property
+    def used_tokens(self) -> int: ...
+    @property
+    def remaining_tokens(self) -> int: ...
+    @property
+    def pct_used(self) -> float: ...
+    @property
+    def is_exhausted(self) -> bool: ...
+
+    def add(self, tokens: int) -> bool: ...
+    def add_text(self, text: str) -> bool: ...
+    def add_message(self, msg: dict) -> bool: ...
+    def add_messages(self, messages: list[dict]) -> bool: ...
+    def reset(self) -> None: ...
+    def snapshot(self) -> dict: ...
+```
+
+### `BudgetWarning`
+
+```python
+@dataclass
+class BudgetWarning:
+    used_tokens: int
+    max_tokens: int
+    remaining_tokens: int
+    pct_used: float
+    message: str
+```
+
+### `estimate_tokens(text) -> int`
+
+Rough token estimate for a string.
+
+## License
+
+MIT
