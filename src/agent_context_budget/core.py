@@ -118,7 +118,15 @@ class ContextBudget:
         """Add `tokens` to the used count.
 
         Returns True if still within budget, False (or raises) if exceeded.
+
+        Raises:
+            ValueError: if `tokens` is negative. Negative additions would
+                silently corrupt the running total (used could go below zero,
+                making ``remaining_tokens`` exceed ``max_tokens``), so they are
+                rejected outright.
         """
+        if tokens < 0:
+            raise ValueError(f"tokens must be >= 0, got {tokens}")
         self._used += tokens
         self._check_warnings()
         if self._used > self.max_tokens:
