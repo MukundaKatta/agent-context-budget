@@ -4,6 +4,12 @@ Track estimated token usage across a conversation and warn before the context li
 
 Zero dependencies. Python 3.10+. MIT.
 
+Long-running agent loops drift toward the model's context window one message at
+a time. `agent-context-budget` keeps a running estimate of how many tokens
+you've spent, fires callbacks at the thresholds you choose (e.g. 70% and 90%),
+and either raises or returns `False` once the budget is exhausted — so you can
+trim or summarize history *before* the provider rejects the request.
+
 ## Install
 
 ```bash
@@ -68,6 +74,10 @@ while True:
 
 Factory with default warn_at=[0.7, 0.9].
 
+`max_tokens` must be `>= 1` (otherwise `ValueError`). Each `add*` call must
+contribute a non-negative number of tokens; passing a negative count to `add()`
+raises `ValueError` rather than silently corrupting the running total.
+
 ### `ContextBudget`
 
 ```python
@@ -110,6 +120,18 @@ class BudgetWarning:
 ### `estimate_tokens(text) -> int`
 
 Rough token estimate for a string.
+
+## Development
+
+The library has no runtime dependencies, and the test suite uses only the
+Python standard library (`unittest`) — no test runner to install:
+
+```bash
+python -m unittest discover -s tests
+```
+
+CI runs the same command across Python 3.10–3.13 (see
+`.github/workflows/ci.yml`).
 
 ## License
 
